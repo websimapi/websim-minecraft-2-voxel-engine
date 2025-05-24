@@ -124,8 +124,21 @@ export class ChunkManager {
         const mesh = this.chunkMeshes.get(chunkKey);
         if (mesh) {
             this.scene.remove(mesh);
-            mesh.geometry.dispose();
-            mesh.material.dispose();
+            
+            // Handle disposal for both individual meshes and groups
+            if (mesh.geometry) {
+                mesh.geometry.dispose();
+            }
+            if (mesh.material) {
+                mesh.material.dispose();
+            } else if (mesh.children) {
+                // Handle Three.js Group - dispose each child's geometry and material
+                mesh.children.forEach(child => {
+                    if (child.geometry) child.geometry.dispose();
+                    if (child.material) child.material.dispose();
+                });
+            }
+            
             this.chunkMeshes.delete(chunkKey);
         }
         
@@ -232,4 +245,3 @@ export class ChunkManager {
         this.loadedChunks.clear();
     }
 }
-
