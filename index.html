@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minecraft 2 - Voxel Engine</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: #87CEEB;
+            font-family: Arial, sans-serif;
+        }
+        
+        #gameContainer {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+        
+        #ui {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 100;
+            color: white;
+            background: rgba(0,0,0,0.7);
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        
+        #controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 100;
+            color: white;
+            background: rgba(0,0,0,0.7);
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 12px;
+        }
+        
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 20px;
+            height: 20px;
+            z-index: 50;
+        }
+        
+        #crosshair::before,
+        #crosshair::after {
+            content: '';
+            position: absolute;
+            background: white;
+            box-shadow: 0 0 2px black;
+        }
+        
+        #crosshair::before {
+            width: 2px;
+            height: 20px;
+            left: 9px;
+        }
+        
+        #crosshair::after {
+            width: 20px;
+            height: 2px;
+            top: 9px;
+        }
+        
+        #seedInput {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            z-index: 100;
+            background: rgba(0,0,0,0.8);
+            padding: 10px;
+            border-radius: 5px;
+            color: white;
+        }
+        
+        #seedInput input {
+            background: rgba(255,255,255,0.2);
+            border: 1px solid #666;
+            color: white;
+            padding: 5px;
+            margin: 5px;
+            border-radius: 3px;
+        }
+        
+        #seedInput button {
+            background: #4CAF50;
+            border: none;
+            color: white;
+            padding: 5px 10px;
+            margin: 5px;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <div id="ui">
+            <div>FPS: <span id="fps">0</span></div>
+            <div>Chunks Loaded: <span id="chunks">0</span></div>
+            <div>Position: <span id="position">0, 0, 0</span></div>
+            <div>Biome: <span id="biome">Plains</span></div>
+            <div>Seed: <span id="currentSeed">12345</span></div>
+        </div>
+        
+        <div id="controls">
+            <div><strong>Controls:</strong></div>
+            <div>WASD - Move</div>
+            <div>Mouse - Look</div>
+            <div>Space - Fly Up</div>
+            <div>Shift - Fly Down</div>
+            <div>Click - Break Block</div>
+            <div>Right Click - Place Block</div>
+            <div>1-8 - Select Block</div>
+        </div>
+        
+        <div id="crosshair"></div>
+        
+        <div id="seedInput">
+            <div>World Seed:</div>
+            <input type="text" id="seed" value="12345" placeholder="Enter seed">
+            <button onclick="regenerateWorld()">Generate New World</button>
+        </div>
+    </div>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.157.0/build/three.module.js",
+            "three/examples/": "https://cdn.jsdelivr.net/npm/three@0.157.0/examples/"
+        }
+    }
+    </script>
+
+    <script type="module">
+        import { VoxelEngine } from './voxel-engine.js';
+        import { NoiseGenerator } from './noise.js';
+        import { ChunkManager } from './chunk-manager.js';
+        import { TerrainGenerator } from './terrain-generator.js';
+        import { Renderer } from './renderer.js';
+
+        let voxelEngine;
+
+        async function init() {
+            const container = document.getElementById('gameContainer');
+            
+            voxelEngine = new VoxelEngine({
+                container: container,
+                seed: parseInt(document.getElementById('seed').value) || 12345,
+                renderDistance: 6,
+                chunkSize: 32,
+                worldHeight: 256
+            });
+
+            await voxelEngine.init();
+            voxelEngine.start();
+
+            // Update UI
+            updateUI();
+            setInterval(updateUI, 100);
+        }
+
+        function updateUI() {
+            if (!voxelEngine) return;
+            
+            const stats = voxelEngine.getStats();
+            document.getElementById('fps').textContent = stats.fps;
+            document.getElementById('chunks').textContent = stats.chunksLoaded;
+            
+            const pos = voxelEngine.getPlayerPosition();
+            document.getElementById('position').textContent = 
+                `${Math.floor(pos.x)}, ${Math.floor(pos.y)}, ${Math.floor(pos.z)}`;
+            
+            document.getElementById('biome').textContent = stats.currentBiome;
+            document.getElementById('currentSeed').textContent = voxelEngine.getSeed();
+        }
+
+        window.regenerateWorld = function() {
+            const newSeed = parseInt(document.getElementById('seed').value) || Math.floor(Math.random() * 1000000);
+            document.getElementById('seed').value = newSeed;
+            
+            if (voxelEngine) {
+                voxelEngine.dispose();
+            }
+            
+            const container = document.getElementById('gameContainer');
+            voxelEngine = new VoxelEngine({
+                container: container,
+                seed: newSeed,
+                renderDistance: 6,
+                chunkSize: 32,
+                worldHeight: 256
+            });
+
+            voxelEngine.init().then(() => {
+                voxelEngine.start();
+            });
+        };
+
+        init();
+    </script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4c6229722a6346bc8eb5cb0e5eae5d41","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
+</body>
+</html>
+
