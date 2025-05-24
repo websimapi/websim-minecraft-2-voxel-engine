@@ -15,36 +15,128 @@ export class TerrainGenerator {
         this.humidityNoise = new NoiseGenerator(this.seed + 5000);
         this.mountainNoise = new NoiseGenerator(this.seed + 6000);
         this.riverNoise = new NoiseGenerator(this.seed + 7000);
+        this.erosionNoise = new NoiseGenerator(this.seed + 8000);
+        this.ridgeNoise = new NoiseGenerator(this.seed + 9000);
+        this.plateauNoise = new NoiseGenerator(this.seed + 10000);
+        this.warpNoise = new NoiseGenerator(this.seed + 11000);
+        this.valleyNoise = new NoiseGenerator(this.seed + 12000);
         
         // Terrain generation parameters
         this.seaLevel = 64;
-        this.maxHeight = 180;
+        this.maxHeight = 220;
         this.minHeight = 10;
+        this.mountainHeight = 180;
+        this.plateauHeight = 120;
+
+    generateHeightMap(chunkX, chunkZ) {
+        const heightMap = [];
         
-        // Biome definitions
-        this.biomes = {
-            OCEAN: { id: 0, name: 'Ocean', color: [0, 0, 0.8] },
-            PLAINS: { id: 1, name: 'Plains', color: [0.3, 0.8, 0.3] },
-            DESERT: { id: 2, name: 'Desert', color: [0.9, 0.8, 0.4] },
-            FOREST: { id: 3, name: 'Forest', color: [0.2, 0.6, 0.2] },
-            MOUNTAINS: { id: 4, name: 'Mountains', color: [0.6, 0.6, 0.6] },
-            TAIGA: { id: 5, name: 'Taiga', color: [0.2, 0.5, 0.3] },
-            SWAMP: { id: 6, name: 'Swamp', color: [0.4, 0.5, 0.3] },
-            TUNDRA: { id: 7, name: 'Tundra', color: [0.7, 0.8, 0.9] }
-        };
+        for (let x = 0; x < this.chunkSize; x++) {
+            heightMap[x] = [];
+            for (let z = 0; z < this.chunkSize; z++) {
+                const worldX = chunkX * this.chunkSize + x;
+                const worldZ = chunkZ * this.chunkSize + z;
+                
+                // Domain warping for more natural terrain
+                const warpStrength = 20.0;
+                const warpX = this.warpNoise.fractalNoise3D(worldX * 0.003, 0, worldZ * 0.003, 2, 0.5, 2.0) * warpStrength;
+                const warpZ = this.warpNoise.fractalNoise3D(worldX * 0.003 + 100, 0, worldZ * 0.003 + 100, 2, 0.5, 2.0) * warpStrength;
+                
+                const warpedX = worldX + warpX;
+                const warpedZ = worldZ + warpZ;
+                
+                // Continental shelf - very large scale features
+                const continental = this.heightNoise.fractalNoise3D(warpedX * 0.0008, 0, warpedZ * 0.0008, 2, 0.6, 2.5);
+                
+                // Base terrain height
+                let height = this.heightNoise.fractalNoise3D(warpedX * 0.004, 0, warpedZ * 0.004, 4, 0.6, 2.2);
+                
+                // Mountain ridge generation using ridged noise
+                const mountainMask = this.mountainNoise.fractalNoise3D(warpedX * 0.002, 400, warpedZ * 0.002, 3, 0.6, 2.0);
+                if (mountainMask > 0.2) {
+                    // Primary mountain ridges
+                    const ridge1 = this.ridgeNoise.ridgedNoise(warpedX * 0.008, 500, warpedZ * 0.008, 4, 0.5, 2.3);
+                    const ridge2 = this.ridgeNoise.ridgedNoise(warpedX * 0.012, 600, warpedZ * 0.012, 3, 0.4, 2.1);
+                    
+                    // Combine ridges with multiplication for sharp peaks
+                    const combinedRidge = ridge1 * ridge2;
+                    
+                    // Mountain height based on mask strength
+                    const mountainStrength = Math.pow(Math.max(0, mountainMask - 0.2), 1.5);
+                    const mountainAddition = combinedRidge * mountainStrength * 2.5;
+                    
+                    height += mountainAddition;
+                    
+                    // Add secondary peaks and detail
+                    const detailNoise = this.mountainNoise.fractalNoise3D(warpedX * 0.025, 700, warpedZ * 0.025, 3, 0.4, 2.0);
+                    height += detailNoise * mountainStrength * 0.4;
+                }
+                
+                // Plateau generation
+                const plateauMask = this.plateauNoise.fractalNoise3D(warpedX * 0.003, 800, warpedZ * 0.003, 2, 0.5, 2.0);
+                if (plateauMask > 0.4 && mountainMask < 0.3) {
+                    const plateauHeight = this.plateauNoise.fractalNoise3D(warpedX * 0.01, 900, warpedZ * 0.01, 2, 0.3, 2.0);
+                    const plateauStrength = Math.pow(Math.max(0, plateauMask - 0.4), 2.0);
+                    height += plateauHeight * plateauStrength * 1.2;
+                }
+                
+                // Valley carving using inverse ridged noise
+                const valleyNoise1 = 1.0 - this.valleyNoise.ridgedNoise(warpedX * 0.006, 1000, warpedZ * 0.006, 2, 0.6, 2.0);
+                const valleyNoise2 = 1.0 - this.valleyNoise.ridgedNoise(warpedX * 0.004, 1100, warpedZ * 0.004, 1, 1.0, 1.0);
+                const valleyMask = valleyNoise1 * valleyNoise2;
+                
+                if (valleyMask < 0.3) {
+                    const valleyDepth = (0.3 - valleyMask) * 2.0;
+                    height -= valleyDepth;
+                }
+                
+                // River valley generation - more pronounced
+                const riverValue = Math.abs(this.riverNoise.fractalNoise3D(warpedX * 0.008, 600, warpedZ * 0.008, 2, 0.5, 2.0));
+                if (riverValue < 0.08) {
+                    const riverDepth = Math.pow((0.08 - riverValue) * 12.5, 1.5);
+                    height -= riverDepth;
+                }
+                
+                // Erosion simulation for more realistic terrain
+                const erosionFactor = this.erosionNoise.fractalNoise3D(warpedX * 0.02, 1200, warpedZ * 0.02, 3, 0.5, 2.0);
+                const slope = this.calculateSlope(warpedX, warpedZ);
+                const erosionAmount = erosionFactor * slope * 0.2;
+                height -= erosionAmount;
+                
+                // Regional variations with continental influence
+                const regional = this.heightNoise.fractalNoise3D(warpedX * 0.015, 100, warpedZ * 0.015, 3, 0.5, 2.0);
+                height += regional * 0.3 * (1.0 + continental * 0.5);
+                
+                // Fine surface details
+                const detail = this.heightNoise.fractalNoise3D(warpedX * 0.08, 300, warpedZ * 0.08, 2, 0.3, 2.0);
+                height += detail * 0.1;
+                
+                // Apply continental influence
+                height += continental * 0.8;
+                
+                // Normalize and scale to world height
+                height = Math.max(-1, Math.min(1.5, height));
+                const finalHeight = this.seaLevel + height * (this.mountainHeight - this.seaLevel);
+                
+                heightMap[x][z] = Math.floor(Math.max(this.minHeight, Math.min(this.maxHeight, finalHeight)));
+            }
+        }
         
-        // Block types
-        this.blocks = {
-            AIR: 0,
-            STONE: 1,
-            DIRT: 2,
-            GRASS: 3,
-            SAND: 4,
-            WATER: 5,
-            WOOD: 6,
-            LEAVES: 7,
-            COBBLESTONE: 8
-        };
+        return heightMap;
+    }
+
+    calculateSlope(x, z) {
+        // Calculate approximate slope using nearby noise samples
+        const sampleDistance = 1.0;
+        const h1 = this.heightNoise.fractalNoise3D((x - sampleDistance) * 0.004, 0, z * 0.004, 4, 0.6, 2.2);
+        const h2 = this.heightNoise.fractalNoise3D((x + sampleDistance) * 0.004, 0, z * 0.004, 4, 0.6, 2.2);
+        const h3 = this.heightNoise.fractalNoise3D(x * 0.004, 0, (z - sampleDistance) * 0.004, 4, 0.6, 2.2);
+        const h4 = this.heightNoise.fractalNoise3D(x * 0.004, 0, (z + sampleDistance) * 0.004, 4, 0.6, 2.2);
+        
+        const dx = (h2 - h1) / (2.0 * sampleDistance);
+        const dz = (h4 - h3) / (2.0 * sampleDistance);
+        
+        return Math.sqrt(dx * dx + dz * dz);
     }
 
     generateChunk(chunk) {
@@ -70,61 +162,6 @@ export class TerrainGenerator {
         
         // Add structures and features
         this.addStructures(chunk, chunkX, chunkZ, heightMap, biomeMap);
-    }
-
-    generateHeightMap(chunkX, chunkZ) {
-        const heightMap = [];
-        
-        for (let x = 0; x < this.chunkSize; x++) {
-            heightMap[x] = [];
-            for (let z = 0; z < this.chunkSize; z++) {
-                const worldX = chunkX * this.chunkSize + x;
-                const worldZ = chunkZ * this.chunkSize + z;
-                
-                // Multiple noise layers for complex terrain
-                const scale1 = 0.005; // Continental scale
-                const scale2 = 0.02;  // Regional scale
-                const scale3 = 0.08;  // Local scale
-                const scale4 = 0.3;   // Detail scale
-                
-                // Base continental height
-                let height = this.heightNoise.fractalNoise3D(worldX * scale1, 0, worldZ * scale1, 4, 0.6, 2.2);
-                
-                // Regional variations
-                const regional = this.heightNoise.fractalNoise3D(worldX * scale2, 100, worldZ * scale2, 3, 0.5, 2.0);
-                height += regional * 0.3;
-                
-                // Local hills and valleys
-                const local = this.heightNoise.ridgedNoise(worldX * scale3, 200, worldZ * scale3, 2, 0.4, 2.5);
-                height += local * 0.2;
-                
-                // Fine details
-                const detail = this.heightNoise.fractalNoise3D(worldX * scale4, 300, worldZ * scale4, 2, 0.3, 2.0);
-                height += detail * 0.1;
-                
-                // Mountain regions
-                const mountainMask = this.mountainNoise.fractalNoise3D(worldX * 0.003, 400, worldZ * 0.003, 3, 0.6, 2.0);
-                if (mountainMask > 0.3) {
-                    const mountainHeight = this.mountainNoise.ridgedNoise(worldX * 0.01, 500, worldZ * 0.01, 4, 0.5, 2.2);
-                    height += mountainHeight * (mountainMask - 0.3) * 2.0;
-                }
-                
-                // River valleys
-                const riverValue = Math.abs(this.riverNoise.fractalNoise3D(worldX * 0.008, 600, worldZ * 0.008, 1, 1.0, 2.0));
-                if (riverValue < 0.1) {
-                    const riverDepth = (0.1 - riverValue) * 3.0;
-                    height -= riverDepth;
-                }
-                
-                // Normalize and scale to world height
-                height = Math.max(-1, Math.min(1, height));
-                const finalHeight = this.seaLevel + height * (this.maxHeight - this.seaLevel);
-                
-                heightMap[x][z] = Math.floor(Math.max(this.minHeight, finalHeight));
-            }
-        }
-        
-        return heightMap;
     }
 
     generateBiomeMap(chunkX, chunkZ) {
@@ -358,5 +395,27 @@ export class TerrainGenerator {
             return humidity > 0.1 ? 'Forest' : 'Plains';
         }
     }
-}
 
+    biomes = {
+        OCEAN: { id: 0, name: 'Ocean', color: [0, 0, 0.8] },
+        PLAINS: { id: 1, name: 'Plains', color: [0.3, 0.8, 0.3] },
+        DESERT: { id: 2, name: 'Desert', color: [0.9, 0.8, 0.4] },
+        FOREST: { id: 3, name: 'Forest', color: [0.2, 0.6, 0.2] },
+        MOUNTAINS: { id: 4, name: 'Mountains', color: [0.6, 0.6, 0.6] },
+        TAIGA: { id: 5, name: 'Taiga', color: [0.2, 0.5, 0.3] },
+        SWAMP: { id: 6, name: 'Swamp', color: [0.4, 0.5, 0.3] },
+        TUNDRA: { id: 7, name: 'Tundra', color: [0.7, 0.8, 0.9] }
+    };
+
+    blocks = {
+        AIR: 0,
+        STONE: 1,
+        DIRT: 2,
+        GRASS: 3,
+        SAND: 4,
+        WATER: 5,
+        WOOD: 6,
+        LEAVES: 7,
+        COBBLESTONE: 8
+    };
+}
