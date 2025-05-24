@@ -28,6 +28,31 @@ export class TerrainGenerator {
         this.mountainHeight = 180;
         this.plateauHeight = 120;
 
+        // Define biomes and blocks
+        this.biomes = {
+            OCEAN: { id: 0, name: 'Ocean', color: [0, 0, 0.8] },
+            PLAINS: { id: 1, name: 'Plains', color: [0.3, 0.8, 0.3] },
+            DESERT: { id: 2, name: 'Desert', color: [0.9, 0.8, 0.4] },
+            FOREST: { id: 3, name: 'Forest', color: [0.2, 0.6, 0.2] },
+            MOUNTAINS: { id: 4, name: 'Mountains', color: [0.6, 0.6, 0.6] },
+            TAIGA: { id: 5, name: 'Taiga', color: [0.2, 0.5, 0.3] },
+            SWAMP: { id: 6, name: 'Swamp', color: [0.4, 0.5, 0.3] },
+            TUNDRA: { id: 7, name: 'Tundra', color: [0.7, 0.8, 0.9] }
+        };
+
+        this.blocks = {
+            AIR: 0,
+            STONE: 1,
+            DIRT: 2,
+            GRASS: 3,
+            SAND: 4,
+            WATER: 5,
+            WOOD: 6,
+            LEAVES: 7,
+            COBBLESTONE: 8
+        };
+    }
+
     generateHeightMap(chunkX, chunkZ) {
         const heightMap = [];
         
@@ -395,27 +420,4 @@ export class TerrainGenerator {
             return humidity > 0.1 ? 'Forest' : 'Plains';
         }
     }
-
-    biomes = {
-        OCEAN: { id: 0, name: 'Ocean', color: [0, 0, 0.8] },
-        PLAINS: { id: 1, name: 'Plains', color: [0.3, 0.8, 0.3] },
-        DESERT: { id: 2, name: 'Desert', color: [0.9, 0.8, 0.4] },
-        FOREST: { id: 3, name: 'Forest', color: [0.2, 0.6, 0.2] },
-        MOUNTAINS: { id: 4, name: 'Mountains', color: [0.6, 0.6, 0.6] },
-        TAIGA: { id: 5, name: 'Taiga', color: [0.2, 0.5, 0.3] },
-        SWAMP: { id: 6, name: 'Swamp', color: [0.4, 0.5, 0.3] },
-        TUNDRA: { id: 7, name: 'Tundra', color: [0.7, 0.8, 0.9] }
-    };
-
-    blocks = {
-        AIR: 0,
-        STONE: 1,
-        DIRT: 2,
-        GRASS: 3,
-        SAND: 4,
-        WATER: 5,
-        WOOD: 6,
-        LEAVES: 7,
-        COBBLESTONE: 8
-    };
 }
