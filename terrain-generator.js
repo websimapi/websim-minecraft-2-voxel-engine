@@ -97,12 +97,36 @@ export class TerrainGenerator {
                     height += detailNoise * mountainStrength * 0.4;
                 }
                 
-                // Plateau generation
+                // Plateau generation with mountain-like features
                 const plateauMask = this.plateauNoise.fractalNoise3D(warpedX * 0.003, 800, warpedZ * 0.003, 2, 0.5, 2.0);
                 if (plateauMask > 0.4 && mountainMask < 0.3) {
-                    const plateauHeight = this.plateauNoise.fractalNoise3D(warpedX * 0.01, 900, warpedZ * 0.01, 2, 0.3, 2.0);
                     const plateauStrength = Math.pow(Math.max(0, plateauMask - 0.4), 2.0);
-                    height += plateauHeight * plateauStrength * 1.2;
+                    
+                    // Base plateau height
+                    const plateauHeight = this.plateauNoise.fractalNoise3D(warpedX * 0.01, 900, warpedZ * 0.01, 2, 0.3, 2.0);
+                    
+                    // Add mountain-like ridges on top of plateaus
+                    const plateauRidge1 = this.ridgeNoise.ridgedNoise(warpedX * 0.015, 1300, warpedZ * 0.015, 3, 0.6, 2.2);
+                    const plateauRidge2 = this.mountainNoise.ridgedNoise(warpedX * 0.02, 1400, warpedZ * 0.02, 2, 0.5, 2.0);
+                    
+                    // Create rocky peaks and spires
+                    const rockFormations = this.ridgeNoise.fractalNoise3D(warpedX * 0.04, 1500, warpedZ * 0.04, 4, 0.4, 2.5);
+                    const spires = Math.max(0, this.mountainNoise.ridgedNoise(warpedX * 0.08, 1600, warpedZ * 0.08, 2, 0.7, 2.0) - 0.3);
+                    
+                    // Surface roughness for rocky texture
+                    const surfaceRoughness = this.erosionNoise.fractalNoise3D(warpedX * 0.1, 1700, warpedZ * 0.1, 3, 0.3, 2.0);
+                    
+                    // Combine all plateau features
+                    const ridgeContribution = (plateauRidge1 * plateauRidge2) * plateauStrength * 0.8;
+                    const rockContribution = Math.pow(Math.max(0, rockFormations), 1.5) * plateauStrength * 0.6;
+                    const spireContribution = Math.pow(spires, 2.0) * plateauStrength * 1.2;
+                    const roughnessContribution = surfaceRoughness * plateauStrength * 0.15;
+                    
+                    // Add stepped terrain effect for mesa-like appearance
+                    const stepNoise = this.plateauNoise.fractalNoise3D(warpedX * 0.006, 1800, warpedZ * 0.006, 1, 1.0, 1.0);
+                    const steps = Math.floor((stepNoise + 1) * 2) * 0.1 * plateauStrength;
+                    
+                    height += (plateauHeight * plateauStrength * 1.2) + ridgeContribution + rockContribution + spireContribution + roughnessContribution + steps;
                 }
                 
                 // Valley carving using inverse ridged noise
