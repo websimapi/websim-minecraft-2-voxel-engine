@@ -211,8 +211,20 @@ export class ChunkManager {
         const oldMesh = this.chunkMeshes.get(chunkKey);
         if (oldMesh) {
             this.scene.remove(oldMesh);
-            oldMesh.geometry.dispose();
-            oldMesh.material.dispose();
+            
+            // Handle disposal for both individual meshes and groups
+            if (oldMesh.geometry) {
+                oldMesh.geometry.dispose();
+            }
+            if (oldMesh.material) {
+                oldMesh.material.dispose();
+            } else if (oldMesh.children) {
+                // Handle Three.js Group - dispose each child's geometry and material
+                oldMesh.children.forEach(child => {
+                    if (child.geometry) child.geometry.dispose();
+                    if (child.material) child.material.dispose();
+                });
+            }
         }
         
         // Create new mesh
